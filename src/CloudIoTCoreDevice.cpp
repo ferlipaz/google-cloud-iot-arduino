@@ -14,6 +14,7 @@
  *****************************************************************************/
 
 #include "CloudIoTCoreDevice.h"
+#include "CloudIoTCore.h"
 #include "jwt.h"
 
 CloudIoTCoreDevice::CloudIoTCoreDevice() {}
@@ -48,18 +49,25 @@ int CloudIoTCoreDevice::getJwtExpSecs() {
   return jwt_exp_secs;
 }
 
-String CloudIoTCoreDevice::createJWT(long long int current_time) {
+String CloudIoTCoreDevice::createJWT() {
+  
+#if defined(ESP8266)
+  // ESP8266: Disable software watchdog as these operations can take a while.
+  ESP.wdtDisable();	
+#endif
+
+  long long int current_time = time(nullptr);
+
   exp_millis = millis() + (jwt_exp_secs * 1000);
-  jwt = CreateJwt(project_id, current_time, priv_key, this->jwt_exp_secs);
+  jwt = CreateJwt(project_id, current_time, priv_key, jwt_exp_secs);
+
+#if defined(ESP8266)  
+  ESP.wdtEnable(0);
+#endif 
+  
   return jwt;
 }
 
-String CloudIoTCoreDevice::createJWT(long long int current_time, int exp_in_secs) {
-  jwt_exp_secs = exp_in_secs;
-  exp_millis = millis() + (jwt_exp_secs * 1000);
-  jwt = CreateJwt(project_id, current_time, priv_key, exp_in_secs);
-  return jwt;
-}
 
 String CloudIoTCoreDevice::getJWT() {
   return jwt;
@@ -151,8 +159,7 @@ CloudIoTCoreDevice &CloudIoTCoreDevice::setDeviceId(const char *device_id) {
 CloudIoTCoreDevice &CloudIoTCoreDevice::setPrivateKey(const char *private_key) {
   this->private_key = private_key;
   if ( strlen(private_key) != (95) ) {
-    Serial.println("Warning: expected private key to be 95, was: " +
-        String(strlen(private_key)));
+    GCIOT_DEBUG_LOG("Warning: expected private key to be 95, was: %d", strlen(private_key));
   }
   fillPrivateKey();
   return *this;
